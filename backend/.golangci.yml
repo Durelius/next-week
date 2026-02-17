@@ -1,0 +1,5 @@
+version: "2"
+#intentionally empty file to help golangci find the root of the project.
+#this helps prevent 'typecheck' from throwing weird errors regarding interfaces
+run:
+  relative-path-mode: gomod
