@@ -2,31 +2,35 @@ package avl
 
 import (
 	"cmp"
+	"fmt"
 	"log"
+	"strings"
 )
 
-type node[T cmp.Ordered] struct {
-	data   T
-	left   *node[T]
-	right  *node[T]
+type node[K cmp.Ordered, V any] struct {
+	key    K
+	value  []V
+	left   *node[K, V]
+	right  *node[K, V]
 	height int
 }
 
 // constructor
-func New[T cmp.Ordered](data T) *node[T] {
-	return &node[T]{data: data, height: 1}
+func createNode[K cmp.Ordered, V any](key K, value V) *node[K, V] {
+	return &node[K, V]{key: key, value: []V{value}, height: 1}
 }
 
-func (n *node[T]) Insert(pData T) *node[T] {
+func (n *node[K, V]) insert(key K, value V) *node[K, V] {
 	if n == nil {
-		return New(pData)
+		return createNode(key, value)
 	}
-	if pData < n.data {
-		n.left = n.left.Insert(pData)
-	} else if pData > n.data {
-		n.right = n.right.Insert(pData)
+	if key < n.key {
+		n.left = n.left.insert(key, value)
+	} else if key > n.key {
+		n.right = n.right.insert(key, value)
 	} else {
-		log.Fatal("unhandled case for duplicate values")
+		n.value = append(n.value, value)
+		return n
 	}
 
 	n.updateHeight()
@@ -38,27 +42,89 @@ func (n *node[T]) Insert(pData T) *node[T] {
 	}
 
 	if balance > 1 && n.left.balanceFactor() < 0 {
-		//rotate left right
+		//left right
 		n.left = n.left.rotateLeft()
 		return n.rotateRight()
 
 	}
 	if balance < -1 && n.right.balanceFactor() <= 0 {
-		//rotate right right
+		//right right
 		return n.rotateLeft()
 	}
 	if balance < -1 && n.right.balanceFactor() > 0 {
-		//rotate right left
-		n.right = n.right.rotateLeft()
+		//right left
+		n.right = n.right.rotateRight()
 		return n.rotateLeft()
 	}
 
 	return n
 }
+func (n *node[K, V]) minValueNode() *node[K, V] {
+	current := n
+	for current.left != nil {
+		current = current.left
+	}
+	return current
+}
+
+func (n *node[K, V]) delete(key K) *node[K, V] {
+	if n == nil {
+		return n
+	}
+	if key < n.key {
+		n.left = n.left.delete(key)
+	} else if key > n.key {
+		n.right = n.right.delete(key)
+	} else {
+		if n.left == nil {
+			temp := n.right
+			n = nil
+			return temp
+		} else if n.right == nil {
+			temp := n.left
+			n = nil
+			return temp
+		}
+
+		temp := n.right.minValueNode()
+		n.key = temp.key
+		n.value = temp.value
+		n.right = n.right.delete(temp.key)
+	}
+	return n
+}
+func (n *node[K, V]) get() (K, []V) {
+	return n.key, n.value
+}
+
+func (n *node[K, V]) Print() {
+	if n == nil {
+		return
+	}
+	log.Println(n.String())
+}
+func (n *node[K, V]) String() string {
+	if n == nil {
+		return ""
+	}
+	return n.traverseString(&strings.Builder{})
+}
+
+func (n *node[K, V]) traverseString(sb *strings.Builder) string {
+	if n == nil {
+		return ""
+	}
+	n.left.traverseString(sb)
+	fmt.Fprintf(sb, "%v, ", n.value)
+	n.right.traverseString(sb)
+	str, _ := strings.CutSuffix(sb.String(), ", ")
+	return str
+
+}
 
 //rotations
 
-func (y *node[T]) rotateRight() *node[T] {
+func (y *node[K, V]) rotateRight() *node[K, V] {
 	x := y.left
 	T2 := x.right
 	x.right = y
@@ -67,28 +133,40 @@ func (y *node[T]) rotateRight() *node[T] {
 	x.updateHeight()
 	return x
 }
-func (x *node[T]) rotateLeft() *node[T] {
+func (x *node[K, V]) rotateLeft() *node[K, V] {
 	y := x.right
 	T2 := y.left
 	y.left = x
 	x.right = T2
 	x.updateHeight()
 	y.updateHeight()
-	return x
+	return y
 
 }
 
 //helper methods
 
-func getHeight[T cmp.Ordered](n *node[T]) int {
+func (n *node[K, V]) getHeight() int {
 	if n == nil {
 		return 0
 	}
 	return n.height
 }
-func (n *node[T]) updateHeight() {
-	n.height = 1 + max(getHeight(n.left), getHeight(n.right))
+func (n *node[K, V]) getSize() int {
+	if n == nil {
+		return 0
+	}
+	return 1 + n.left.getSize() + n.right.getSize()
 }
-func (n *node[T]) balanceFactor() int {
-	return getHeight(n.left) - getHeight(n.right)
+func (n *node[K, V]) updateHeight() {
+	if n == nil {
+		log.Fatal("tried to update height on nil node")
+	}
+	n.height = 1 + max(n.left.getHeight(), n.right.getHeight())
+}
+func (n *node[K, V]) balanceFactor() int {
+	if n == nil {
+		return 0
+	}
+	return n.left.getHeight() - n.right.getHeight()
 }
