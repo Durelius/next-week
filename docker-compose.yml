@@ -25,6 +25,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      DAISY_PERSONAL: https://daisy.dsv.su.se:443/servlet/schema.PersonalCalendarICS?id=184100&access_token=007a316a-6521-41ac-8c62-c72be1082286
       DB_HOST: db
       DB_USER: user
       PGPASSWORD: password

@@ -33,6 +33,10 @@ func (n *node[K, V]) insert(key K, value V) *node[K, V] {
 		return n
 	}
 
+	return n.balance()
+}
+
+func (n *node[K, V]) balance() *node[K, V] {
 	n.updateHeight()
 	balance := n.balanceFactor()
 
@@ -56,15 +60,7 @@ func (n *node[K, V]) insert(key K, value V) *node[K, V] {
 		n.right = n.right.rotateRight()
 		return n.rotateLeft()
 	}
-
 	return n
-}
-func (n *node[K, V]) minValueNode() *node[K, V] {
-	current := n
-	for current.left != nil {
-		current = current.left
-	}
-	return current
 }
 
 func (n *node[K, V]) delete(key K) *node[K, V] {
@@ -91,7 +87,14 @@ func (n *node[K, V]) delete(key K) *node[K, V] {
 		n.value = temp.value
 		n.right = n.right.delete(temp.key)
 	}
-	return n
+	return n.balance()
+}
+func (n *node[K, V]) minValueNode() *node[K, V] {
+	current := n
+	for current.left != nil {
+		current = current.left
+	}
+	return current
 }
 func (n *node[K, V]) get() (K, []V) {
 	return n.key, n.value
@@ -107,19 +110,53 @@ func (n *node[K, V]) String() string {
 	if n == nil {
 		return ""
 	}
-	return n.traverseString(&strings.Builder{})
+	sb := strings.Builder{}
+	sb.WriteString("[")
+	n.traverseString(&sb)
+	str := sb.String()
+	str = strings.TrimSuffix(str, ", ")
+	return str + "]"
 }
 
-func (n *node[K, V]) traverseString(sb *strings.Builder) string {
+func (n *node[K, V]) traverseString(sb *strings.Builder) {
 	if n == nil {
-		return ""
+		return
 	}
 	n.left.traverseString(sb)
-	fmt.Fprintf(sb, "%v, ", n.value)
+	fmt.Fprintf(sb, "%v, ", n.key)
 	n.right.traverseString(sb)
-	str, _ := strings.CutSuffix(sb.String(), ", ")
-	return str
 
+}
+func (n *node[K, V]) find(key K) ([]V, bool) {
+	if n == nil {
+		return nil, false
+	}
+	if n.key == key {
+		return n.value, true
+	}
+	if key < n.key {
+		return n.left.find(key)
+	}
+	return n.right.find(key)
+
+}
+func (n *node[K, V]) findNode(key K) (*node[K, V], bool) {
+	if n == nil {
+		return nil, false
+	}
+	if n.key == key {
+		return n, true
+	}
+	if key < n.key {
+		return n.left.findNode(key)
+	}
+	return n.right.findNode(key)
+
+}
+
+func (n *node[K, V]) contains(key K) bool {
+	_, found := n.find(key)
+	return found
 }
 
 //rotations

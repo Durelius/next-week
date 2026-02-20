@@ -28,3 +28,30 @@ The test suites are named after the AI who generated them.
 
 Shortly after this I added a key, value structure to the AVL tree. So only the key needs to be comparable, and the value can be whatever. Need to redo the tests though with this in mind.
 Also made the values be slices, so we get a slice of values for the duplicates. 
+
+### 26/02/20 Time for additional testing
+
+Now we have changed the whole AVL to use keys and slice values, and added a tree struct with public methods. It's time to try and make our dear LLMs generate test suites again.
+Generating test suite from this prompt in Claude sonnet 4.6, Gemini 3 'Thinking' and ChatGPT free:
+Prompt:
+//promptstart
+This is a custom AVL tree, built by me. The tree struct has these public methods:
+
+
+func New\[K cmp.Ordered, V any]() *Tree\[K, V] {
+func (t *tree \[K, V]) Insert(key K, value V) {
+func (t *tree\[K, V]) Delete(key K) {
+func (t *tree\[K, V]) Height() int {
+func (t *tree\[K, V]) Size() int {
+func (t *tree\[K, V]) Min() (K, []V, bool) {
+func (t *tree\[K, V]) Find(key K) ([]V, bool) {
+func (t *tree \[K, V]) Contains(key K) bool {
+func (t *tree\[K, V]) String() string {
+func (t *tree\[K, V]) Print() {
+
+Use only these public methods, from an external package, to create an extensive test suite that covers all usual edge cases and weird behaivours.
+Use a LOT of data.
+
+//promptend
+
+
