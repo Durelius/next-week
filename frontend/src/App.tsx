@@ -17,15 +17,15 @@ interface EdgeMetadata {
   tripShortName?: string;
   departure: number;
   arrival: number;
+  transferType?: number; // 1 = walking transfer, 2 = transit
   sourceStopName: string;
   destStopName: string;
 }
 
 interface Edge {
-  source: string;
-  destination: string;
+  source?: string;
+  destination?: string;
   metadata: EdgeMetadata;
-
 }
 
 // --- API ---
@@ -56,6 +56,10 @@ function travelDuration(dep: number, arr: number): string {
   const h = Math.floor(diff / 60);
   const m = diff % 60;
   return h > 0 ? `${h} h ${m} min` : `${m} min`;
+}
+
+function isTransferEdge(edge: Edge): boolean {
+  return edge.metadata.transferType === 1 || !edge.metadata.tripId;
 }
 
 // --- StopInput Component ---
@@ -167,6 +171,29 @@ function StopInput({
   );
 }
 
+// --- Transfer Indicator ---
+function TransferIndicator({ edge }: { edge: Edge }) {
+  const duration = edge.metadata.arrival - edge.metadata.departure;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", color: "#6B7A8D", fontSize: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 24, flexShrink: 0 }}>
+        <div style={{ width: 2, height: 12, background: "#D0D7DE" }} />
+        <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#F0F4F8", border: "2px solid #D0D7DE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6B7A8D" strokeWidth="2.5">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
+        </div>
+        <div style={{ width: 2, height: 12, background: "#D0D7DE" }} />
+      </div>
+      <div style={{ background: "#F8FAFC", border: "1px solid #E3E8EF", borderRadius: 6, padding: "6px 12px", fontSize: 12, color: "#6B7A8D" }}>
+        <span style={{ fontWeight: 600 }}>Walk</span>
+        {duration > 0 && <span style={{ marginLeft: 6, color: "#8A96A3" }}>· {travelDuration(edge.metadata.departure, edge.metadata.arrival)}</span>}
+        <span style={{ marginLeft: 6, color: "#8A96A3" }}>· {edge.metadata.sourceStopName} → {edge.metadata.destStopName}</span>
+      </div>
+    </div>
+  );
+}
+
 // --- Route Result ---
 function RouteCard({ edges }: { edges: Edge[] }) {
   if (!edges || edges.length === 0) return (
@@ -175,21 +202,37 @@ function RouteCard({ edges }: { edges: Edge[] }) {
     </div>
   );
 
-  const totalDep = edges[0].metadata.departure;
-  const totalArr = edges[edges.length - 1].metadata.arrival;
+  // Separate transit edges from transfer edges for total time calc
+  const transitEdges = edges.filter(e => !isTransferEdge(e));
+  if (transitEdges.length === 0) return null;
 
-  // Group consecutive edges by tripId into "legs"
-  const legs: Edge[][] = [];
-  let current: Edge[] = [];
+  const totalDep = transitEdges[0].metadata.departure;
+  const totalArr = transitEdges[transitEdges.length - 1].metadata.arrival;
+
+  // Group into segments: either a "transit leg" (same tripId) or a "transfer"
+  type Segment =
+    | { type: "leg"; edges: Edge[] }
+    | { type: "transfer"; edge: Edge };
+
+  const segments: Segment[] = [];
+  let currentLeg: Edge[] = [];
+
   for (const edge of edges) {
-    if (current.length === 0 || current[0].metadata.tripId === edge.metadata.tripId) {
-      current.push(edge);
+    if (isTransferEdge(edge)) {
+      if (currentLeg.length > 0) {
+        segments.push({ type: "leg", edges: currentLeg });
+        currentLeg = [];
+      }
+      segments.push({ type: "transfer", edge });
     } else {
-      legs.push(current);
-      current = [edge];
+      if (currentLeg.length > 0 && currentLeg[0].metadata.tripId !== edge.metadata.tripId) {
+        segments.push({ type: "leg", edges: currentLeg });
+        currentLeg = [];
+      }
+      currentLeg.push(edge);
     }
   }
-  if (current.length > 0) legs.push(current);
+  if (currentLeg.length > 0) segments.push({ type: "leg", edges: currentLeg });
 
   return (
     <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 2px 16px rgba(0,0,0,0.09)", overflow: "hidden", border: "1px solid #E3E8EF" }}>
@@ -207,27 +250,23 @@ function RouteCard({ edges }: { edges: Edge[] }) {
         </div>
       </div>
 
-      {/* Legs */}
+      {/* Segments */}
       <div style={{ padding: "0 24px 20px" }}>
-        {legs.map((leg, li) => {
-          const legFrom = leg[0].source;
-          const legTo = leg[leg.length - 1].destination;
+        {segments.map((seg, si) => {
+          if (seg.type === "transfer") {
+            return <TransferIndicator key={si} edge={seg.edge} />;
+          }
+
+          const leg = seg.edges;
           const legDep = leg[0].metadata.departure;
           const legArr = leg[leg.length - 1].metadata.arrival;
           const meta = leg[0].metadata;
+          const fromName = meta.sourceStopName;
+          const toName = leg[leg.length - 1].metadata.destStopName;
 
           return (
-            <div key={li}>
-              {/* Transfer indicator */}
-              {li > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "#8A96A3", fontSize: 12 }}>
-                  <div style={{ width: 2, height: 28, background: "#E3E8EF", marginLeft: 11 }} />
-                  <span style={{ marginLeft: 4 }}>Transfer</span>
-                </div>
-              )}
-
-              {/* Leg row */}
-              <div style={{ display: "flex", gap: 16, paddingTop: li === 0 ? 20 : 0 }}>
+            <div key={si} style={{ paddingTop: si === 0 ? 20 : 0 }}>
+              <div style={{ display: "flex", gap: 16 }}>
                 {/* Timeline */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 24 }}>
                   <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#006CBF", border: "2px solid #fff", boxShadow: "0 0 0 2px #006CBF", zIndex: 1 }} />
@@ -239,13 +278,7 @@ function RouteCard({ edges }: { edges: Edge[] }) {
                 <div style={{ flex: 1 }}>
                   {/* Departure */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: "#0F1923" }}>{legFrom}</div>
-                      <div style={{ fontSize: 12, color: "#8A96A3", marginTop: 2 }}>
-                        {meta.tripHeadsign && <span>Towards <strong>{meta.tripHeadsign}</strong> · </span>}
-                        {meta.tripShortName && <span>Line {meta.tripShortName}</span>}
-                      </div>
-                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#0F1923" }}>{fromName}</div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: "#006CBF", textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
                       {minutesToTime(legDep)}
                     </div>
@@ -258,6 +291,9 @@ function RouteCard({ edges }: { edges: Edge[] }) {
                     </svg>
                     <span style={{ fontSize: 12, color: "#006CBF", fontWeight: 600 }}>{leg.length} stop{leg.length !== 1 ? "s" : ""}</span>
                     <span style={{ fontSize: 11, color: "#5A8ECC" }}>· {travelDuration(legDep, legArr)}</span>
+                    {meta.tripHeadsign && (
+                      <span style={{ fontSize: 11, color: "#5A8ECC" }}>· {meta.tripHeadsign}</span>
+                    )}
                   </div>
 
                   {/* Stops expand */}
@@ -270,7 +306,7 @@ function RouteCard({ edges }: { edges: Edge[] }) {
                       {leg.map((e, ei) => (
                         <div key={ei} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontSize: 12, color: "#4A5568" }}>
                           <span>{e.metadata.destStopName}</span>
-                          <span style={{ color: "#8A96A3" }}>{minutesToTime(e.metadata.departure)}</span>
+                          <span style={{ color: "#8A96A3" }}>{minutesToTime(e.metadata.arrival)}</span>
                         </div>
                       ))}
                     </div>
@@ -278,7 +314,7 @@ function RouteCard({ edges }: { edges: Edge[] }) {
 
                   {/* Arrival */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: "#0F1923" }}>{legTo}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#0F1923" }}>{toName}</div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: "#003F8A" }}>{minutesToTime(legArr)}</div>
                   </div>
                 </div>
@@ -327,13 +363,12 @@ export default function App() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F0F4F8", fontFamily: "'Figtree', 'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
+    <div style={{ minHeight: "100vh", minWidth: "100vw", background: "#F0F4F8", fontFamily: "'Figtree', 'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
         details > summary::-webkit-details-marker { display: none; }
         ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: #C0CCDA; border-radius: 4px; }
       `}</style>
@@ -341,12 +376,8 @@ export default function App() {
       {/* Header */}
       <header style={{ background: "#003F8A", color: "#fff", boxShadow: "0 2px 12px rgba(0,0,0,0.25)" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
-          {/* SL Logo */}
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 10,
-              background: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="32" height="24" viewBox="0 0 32 24" fill="none">
                 <text x="0" y="20" fontFamily="'Figtree', Arial, sans-serif" fontWeight="800" fontSize="22" fill="#003F8A" letterSpacing="-1">SL</text>
               </svg>
@@ -389,7 +420,6 @@ export default function App() {
                 placeholder="Departure stop…"
               />
 
-              {/* Swap */}
               <button onClick={swap} style={{
                 background: "#F0F6FF", border: "2px solid #C8DEFF", borderRadius: 8, width: 44, flexShrink: 0,
                 cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#006CBF",
@@ -412,7 +442,6 @@ export default function App() {
               />
             </div>
 
-            {/* Second row */}
             <div style={{ display: "flex", gap: 12, marginTop: 12, alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#F8FAFC", border: "2px solid #D0D7DE", borderRadius: 8, padding: "10px 14px", flex: "0 0 auto" }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7A8D" strokeWidth="2.5">

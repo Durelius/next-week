@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/Durelius/next-week/internal/graph"
 	"github.com/gorilla/mux"
@@ -29,7 +30,7 @@ func main() {
 
 	path := slGraph.FindRoute(chosenStartPoint, chosenDestination, 500)
 	for _, edge := range path {
-		log.Printf("TripID: %s, From: %s, To: %s, Start: %d, Arrival: %d", edge.Metadata.TripID, edge.Source(), edge.Destination(), edge.Metadata.Departure, edge.Metadata.Arrival)
+		log.Printf("TripID: %s, From: %s, To: %s, Start: %d, Arrival: %d", edge.Metadata.TripID, edge.SourceMethod(), edge.Destination(), edge.Metadata.Departure, edge.Metadata.Arrival)
 	}
 
 }
@@ -50,12 +51,24 @@ func GetStopsByNameEndpoint(w http.ResponseWriter, r *http.Request) {
 func GetPathEndpoint(w http.ResponseWriter, r *http.Request) {
 	fromStopID := mux.Vars(r)["from"]
 	toStopID := mux.Vars(r)["to"]
-	startTime := mux.Vars(r)["time"]
-
-	log.Println(startTime)
+	startTimeStr := mux.Vars(r)["time"]
+	startTimeHours, err := strconv.Atoi(startTimeStr[0:2])
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	startTimeMinutes, err := strconv.Atoi(startTimeStr[3:5])
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	minutesSinceMidnight := startTimeHours * 60
+	minutesSinceMidnight += startTimeMinutes
 	from := graph.Instance().GetVertexByID(fromStopID)
 	to := graph.Instance().GetVertexByID(toStopID)
-	path := graph.Instance().FindRoute(from, to, 500)
+	path := graph.Instance().FindRoute(from, to, minutesSinceMidnight)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
