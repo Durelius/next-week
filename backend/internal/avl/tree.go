@@ -35,6 +35,12 @@ func (t *Tree[K, V]) Size() int {
 	}
 	return t.root.getSize()
 }
+func (t *Tree[K, V]) SizeInsideBuckets() int {
+	if t.root == nil {
+		return 0
+	}
+	return t.root.getTotalSize()
+}
 func (t *Tree[K, V]) Min() (K, []V, bool) {
 	var zeroK K
 	if t.root == nil {

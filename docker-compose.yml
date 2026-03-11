@@ -21,11 +21,13 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./backend:/app
+      - ./data:/data
       - /app/tmp
     ports:
       - "8080:8080"
     environment:
       DAISY_PERSONAL: https://daisy.dsv.su.se:443/servlet/schema.PersonalCalendarICS?id=184100&access_token=007a316a-6521-41ac-8c62-c72be1082286
+      SL_API_KEY: d72f3b219af94946a70ad1564f07c775
       DB_HOST: db
       DB_USER: user
       PGPASSWORD: password
@@ -37,17 +39,20 @@ services:
       db:
         condition: service_healthy
 
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "5173:5173"
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   environment:
-  #     - HOST=0.0.0.0
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - HOST=0.0.0.0
 
 volumes:
   db-data:
+
+
+

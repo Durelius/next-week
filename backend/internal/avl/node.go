@@ -195,6 +195,12 @@ func (n *node[K, V]) getSize() int {
 	}
 	return 1 + n.left.getSize() + n.right.getSize()
 }
+func (n *node[K, V]) getTotalSize() int {
+	if n == nil {
+		return 0
+	}
+	return len(n.value) + n.left.getTotalSize() + n.right.getTotalSize()
+}
 func (n *node[K, V]) updateHeight() {
 	if n == nil {
 		log.Fatal("tried to update height on nil node")
