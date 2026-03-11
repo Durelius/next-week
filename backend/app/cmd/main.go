@@ -30,7 +30,7 @@ func main() {
 
 	path := slGraph.FindRoute(chosenStartPoint, chosenDestination, 500)
 	for _, edge := range path {
-		log.Printf("TripID: %s, From: %s, To: %s, Start: %d, Arrival: %d", edge.Metadata.TripID, edge.SourceMethod(), edge.Destination(), edge.Metadata.Departure, edge.Metadata.Arrival)
+		log.Printf("TripID: %s, From: %s, To: %s, Start: %d, Arrival: %d", edge.Metadata.TripID, edge.Source(), edge.Destination(), edge.Metadata.Departure, edge.Metadata.Arrival)
 	}
 
 }
